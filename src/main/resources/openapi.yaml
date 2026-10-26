@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: Ledger API
+  version: 0.0.1
+  description: |
+    Double-entry ledger. Amounts are decimal strings. Balances are derived from
+    entries and stored as integer minor units. Writes require an Idempotency-Key.
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/accounts:
+    post:
+      operationId: openAccount
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpenAccount'
+      responses:
+        '201':
+          description: Account opened. Replayed responses include Idempotent-Replayed true.
+          headers:
+            Location:
+              schema: {type: string}
+            Idempotent-Replayed:
+              schema: {type: string}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '400':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+  /v1/accounts/{accountId}:
+    get:
+      operationId: getAccount
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: Current account.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /v1/accounts/{accountId}/entries:
+    get:
+      operationId: accountStatement
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: cursor
+          in: query
+          schema: {type: string}
+        - name: limit
+          in: query
+          schema: {type: integer}
+      responses:
+        '200':
+          description: Entries in the order they were recorded, with the balance after each one.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statement'
+  /v1/accounts/{accountId}/balance:
+    get:
+      operationId: historicalBalance
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+        - name: at
+          in: query
+          required: true
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Balance at an instant, from entries recorded at or before that instant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoricalBalance'
+  /v1/transactions:
+    post:
+      operationId: recordTransaction
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransactionRequest'
+      responses:
+        '201':
+          description: Transaction recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+    get:
+      operationId: transactionFeed
+      parameters:
+        - name: afterSequence
+          in: query
+          schema: {type: integer, format: int64}
+        - name: limit
+          in: query
+          schema: {type: integer}
+      responses:
+        '200':
+          description: Transactions after a sequence number, in commit order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionFeed'
+  /v1/transactions/{transactionId}:
+    get:
+      operationId: getTransaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+      responses:
+        '200':
+          description: Immutable transaction. reversedByTransactionId is set once a reversal exists.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          $ref: '#/components/responses/Problem'
+  /v1/transactions/{transactionId}/reversals:
+    post:
+      operationId: reverseTransaction
+      parameters:
+        - $ref: '#/components/parameters/TransactionId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReversalRequest'
+      responses:
+        '201':
+          description: Reversal recorded. The original entries are not rewritten.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Transaction'
+        '404':
+          $ref: '#/components/responses/Problem'
+        '409':
+          $ref: '#/components/responses/Problem'
+  /v1/samples/payment-settled:
+    post:
+      operationId: publishSamplePayment
+      description: Publishes a payment.settled message. The ledger records it only by consuming that message.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentSettled'
+      responses:
+        '202':
+          description: Broker accepted the message.
+        '503':
+          $ref: '#/components/responses/Problem'
+components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: {type: string, pattern: '^[A-Za-z0-9_.:-]{1,200}$'}
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema: {type: string}
+    TransactionId:
+      name: transactionId
+      in: path
+      required: true
+      schema: {type: string}
+  responses:
+    Problem:
+      description: RFC 9457 problem. code is the application error. errors lists field pointers.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    OpenAccount:
+      type: object
+      required: [id, currency]
+      properties:
+        id: {type: string}
+        currency: {type: string, enum: [EUR, USD, JPY]}
+        overdraftLimit: {type: string, description: "Omitted means 0. Settlement accounts are seeded with no limit."}
+    Account:
+      type: object
+      properties:
+        id: {type: string}
+        currency: {type: string}
+        overdraftLimit: {type: string, nullable: true}
+        balance: {type: string}
+        createdAt: {type: string, format: date-time}
+    Entry:
+      type: object
+      required: [accountId, direction, amount]
+      properties:
+        accountId: {type: string}
+        direction: {type: string, enum: [DEBIT, CREDIT]}
+        amount: {type: string}
+    TransactionRequest:
+      type: object
+      required: [description, entries]
+      properties:
+        description: {type: string}
+        entries:
+          type: array
+          minItems: 2
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/Entry'
+    TransactionEntry:
+      type: object
+      properties:
+        accountId: {type: string}
+        direction: {type: string}
+        amount: {type: string}
+    Transaction:
+      type: object
+      properties:
+        id: {type: string}
+        sequence: {type: integer, format: int64}
+        description: {type: string}
+        currency: {type: string}
+        recordedAt: {type: string, format: date-time}
+        reversesTransactionId: {type: string, nullable: true}
+        reversedByTransactionId: {type: string, nullable: true}
+        paymentId: {type: string, nullable: true}
+        requestId: {type: string, nullable: true}
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionEntry'
+    Statement:
+      type: object
+      properties:
+        accountId: {type: string}
+        items: {type: array}
+        nextCursor: {type: string, nullable: true}
+    HistoricalBalance:
+      type: object
+      properties:
+        accountId: {type: string}
+        currency: {type: string}
+        balance: {type: string}
+        at: {type: string, format: date-time}
+    TransactionFeed:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+        nextSequence: {type: integer, format: int64, nullable: true}
+    ReversalRequest:
+      type: object
+      properties:
+        description: {type: string}
+    PaymentSettled:
+      type: object
+      required: [eventId, paymentId, merchantAccountId, amount, currency]
+      properties:
+        eventId: {type: string}
+        paymentId: {type: string}
+        merchantAccountId: {type: string}
+        amount: {type: string}
+        currency: {type: string}
+    Problem:
+      type: object
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              pointer: {type: string}
+              code: {type: string}
+              detail: {type: string}
