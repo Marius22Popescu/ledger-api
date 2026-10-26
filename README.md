@@ -34,9 +34,7 @@ Payments are not deduplicated by the HTTP key. They are deduplicated by `payment
 
 ### Outbox
 
-The transaction row, its entries, the balance update and the outbox row commit together. A scheduler then publishes unpublished rows to RabbitMQ and, after a broker confirm, marks them published. `SELECT ... FOR UPDATE SKIP LOCKED` lets more than one instance publish without taking the same row.
-
-If the process dies after the database commit and before the publish, the row is still unpublished and a later pass sends it. If it dies after the broker has the message and before the mark, the row is sent again. Announcements are at-least-once. Consumers must tolerate a repeated `transactionId`.
+The transaction row, its entries, the balance update and the outbox row commit together. A scheduler claims a batch in a short transaction (`claimed_at`, with `FOR UPDATE SKIP LOCKED`), publishes after that transaction commits, and sets `published_at` only after RabbitMQ confirms. Row locks are not held while waiting for the confirm. A claim older than two seconds can be taken again, so a crash after the broker has the message and before the mark sends the event again. Announcements are at-least-once. Consumers must tolerate a repeated `transactionId`.
 
 ## API
 
@@ -100,7 +98,7 @@ Flyway applies `src/main/resources/db/migration/V1__schema.sql` on startup.
 - `transactions` are insert-only. `sequence_no` is an auto-increment. `payment_id` is unique. `reverses_transaction_id` is unique, so a transaction can be reversed once.
 - `entries` store a positive `amount_minor`, a direction, and `balance_after_minor`.
 - `idempotency_records` stores the key, the request hash, and the response.
-- `outbox_messages` stores the announcement payload until `published_at` is set.
+- `outbox_messages` stores the announcement payload, a `claimed_at` lease, and `published_at` once the broker has confirmed.
 - `payment_intake_failures` records messages that were rejected and dead-lettered.
 
 There is no update of an entry amount and no delete of a transaction.
@@ -142,7 +140,6 @@ The tests are in `src/test/java/com/ledger/guarantee/`. `LedgerGuaranteeTest` de
 
 Before production I would:
 
-- Publish the outbox outside the database transaction. Today the publisher holds `FOR UPDATE` locks while it waits for the RabbitMQ confirm, which keeps those rows locked during broker I/O.
 - Add authentication and drop the sample payment endpoint, or gate it so it cannot be reached in production.
 - Make the idempotency fingerprint compare minor units, so `10` and `10.00` are the same HTTP request.
 - Retain idempotency rows for a defined time instead of forever.
