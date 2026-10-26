@@ -1,5 +1,6 @@
-package com.ledger.domain;
+package com.ledger.guarantee;
 
+import com.ledger.domain.Money;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

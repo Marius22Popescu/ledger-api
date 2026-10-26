@@ -1,5 +1,6 @@
-package com.ledger;
+package com.ledger.guarantee;
 
+import com.ledger.TestcontainersConfiguration;
 import com.ledger.api.ApiModels.AccountBody;
 import com.ledger.api.ApiModels.HistoricalBalance;
 import com.ledger.api.ApiModels.TransactionBody;

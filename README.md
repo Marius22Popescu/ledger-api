@@ -136,7 +136,7 @@ Output: topic exchange `ledger.transactions`, routing key `transaction.recorded`
 
 ## Tests
 
-`LedgerGuaranteeTest` is the suite that demonstrates the guarantees above, against real MySQL and RabbitMQ. `MoneyTest` covers scale, zero, and the `0.10 + 0.20` case without a database.
+The tests are in `src/test/java/com/ledger/guarantee/`. `LedgerGuaranteeTest` demonstrates the guarantees above, against real MySQL and RabbitMQ. `MoneyTest` covers scale, zero, and the `0.10 + 0.20` case without a database.
 
 # Improvements
 
