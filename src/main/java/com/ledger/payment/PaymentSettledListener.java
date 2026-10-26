@@ -64,16 +64,19 @@ public class PaymentSettledListener {
             return;
         }
         MDC.put("requestId", event.eventId());
+        MDC.put("eventId", event.eventId());
         MDC.put("paymentId", event.paymentId());
         try {
             intake.accept(event);
-            log.info("payment.recorded paymentId={} eventId={} merchant={}", event.paymentId(), event.eventId(), event.merchantAccountId());
+            log.info("payment.recorded paymentId={} eventId={} merchant={} result=recorded",
+                    event.paymentId(), event.eventId(), event.merchantAccountId());
         } catch (PaymentRejectedException ex) {
             traceAndDeadLetter(event.eventId(), event.paymentId(), ex, body);
         } catch (TransientDataAccessException ex) {
             throw ex;
         } finally {
             MDC.remove("requestId");
+            MDC.remove("eventId");
             MDC.remove("paymentId");
         }
     }

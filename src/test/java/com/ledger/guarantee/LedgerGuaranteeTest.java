@@ -357,6 +357,44 @@ class LedgerGuaranteeTest {
         assertTrue(euro.body().contains("INVALID_CURRENCY"), euro.body());
     }
 
+    @Test
+    void specRejectionsLeaveTheLedgerUntouched() throws Exception {
+        String eur = open("eur", "0.00");
+        String usd = open("usd", "0.00");
+        long transactions = scalar("SELECT COUNT(*) FROM transactions");
+        long entries = scalar("SELECT COUNT(*) FROM entries");
+        long outbox = scalar("SELECT COUNT(*) FROM outbox_messages");
+
+        ApiResult oneEntry = post("/v1/transactions", "one-" + eur, transaction("Only one",
+                entry(eur, "DEBIT", "1.00")));
+        ApiResult zero = post("/v1/transactions", "zero-" + eur, transaction("Zero",
+                entry(eur, "DEBIT", "0.00"),
+                entry("settlement-eur", "CREDIT", "0.00")));
+        ApiResult negative = post("/v1/transactions", "neg-" + eur, transaction("Negative",
+                entry(eur, "DEBIT", "-1.00"),
+                entry("settlement-eur", "CREDIT", "-1.00")));
+        ApiResult unknown = post("/v1/transactions", "missing-" + eur, transaction("Missing account",
+                entry(eur, "DEBIT", "1.00"),
+                entry("missing-" + eur, "CREDIT", "1.00")));
+        ApiResult mixed = post("/v1/transactions", "mixed-" + eur, transaction("Mixed currencies",
+                entry(eur, "DEBIT", "1.00"),
+                entry(usd, "CREDIT", "1.00")));
+
+        assertEquals(422, oneEntry.status(), oneEntry.body());
+        assertTrue(oneEntry.body().contains("TOO_FEW_ENTRIES"), oneEntry.body());
+        assertEquals(400, zero.status(), zero.body());
+        assertTrue(zero.body().contains("INVALID_AMOUNT"), zero.body());
+        assertEquals(400, negative.status(), negative.body());
+        assertTrue(negative.body().contains("INVALID_AMOUNT"), negative.body());
+        assertEquals(422, unknown.status(), unknown.body());
+        assertTrue(unknown.body().contains("UNKNOWN_ACCOUNT"), unknown.body());
+        assertEquals(422, mixed.status(), mixed.body());
+        assertTrue(mixed.body().contains("CURRENCY_MISMATCH"), mixed.body());
+        assertEquals(transactions, scalar("SELECT COUNT(*) FROM transactions"));
+        assertEquals(entries, scalar("SELECT COUNT(*) FROM entries"));
+        assertEquals(outbox, scalar("SELECT COUNT(*) FROM outbox_messages"));
+    }
+
     private String open(String currency, String overdraft) throws Exception {
         String accountId = id(currency.toLowerCase());
         ApiResult result = post("/v1/accounts", "open-" + accountId,

@@ -8,6 +8,7 @@ import com.ledger.json.LedgerJson;
 import com.ledger.ledger.Outcome;
 import com.ledger.store.IdempotencyRow;
 import com.ledger.store.LedgerStore;
+import org.slf4j.MDC;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -42,14 +43,19 @@ public class IdempotencyExecutor {
                     "Send an Idempotency-Key of 1 to 200 characters using letters, digits, and . _ : -."
             ));
         }
-        for (int attempt = 1; ; attempt++) {
-            try {
-                return transactions.execute(status -> run(key, requestHash, work));
-            } catch (TransientDataAccessException ex) {
-                if (attempt >= 5) {
-                    throw ex;
+        MDC.put("idempotencyKey", key);
+        try {
+            for (int attempt = 1; ; attempt++) {
+                try {
+                    return transactions.execute(status -> run(key, requestHash, work));
+                } catch (TransientDataAccessException ex) {
+                    if (attempt >= 5) {
+                        throw ex;
+                    }
                 }
             }
+        } finally {
+            MDC.remove("idempotencyKey");
         }
     }
 

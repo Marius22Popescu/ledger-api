@@ -326,19 +326,35 @@ public class LedgerStore {
         );
     }
 
-    public List<OutboxRow> lockUnpublished(int limit) {
+    public List<OutboxRow> lockUnpublished(Instant claimableBefore, int limit) {
         return jdbc.query(
                 """
                 SELECT id, transaction_id, payload
                 FROM outbox_messages
                 WHERE published_at IS NULL
+                  AND (claimed_at IS NULL OR claimed_at < ?)
                 ORDER BY id
                 LIMIT ?
                 FOR UPDATE SKIP LOCKED
                 """,
-                (rs, row) -> new OutboxRow(rs.getLong("id"), rs.getString("transaction_id"), rs.getString("payload")),
-                limit
+                (PreparedStatement ps) -> {
+                    SqlTimes.write(ps, 1, claimableBefore);
+                    ps.setInt(2, limit);
+                },
+                (rs, row) -> new OutboxRow(rs.getLong("id"), rs.getString("transaction_id"), rs.getString("payload"))
         );
+    }
+
+    public void markClaimed(List<Long> ids, Instant claimedAt) {
+        for (Long id : ids) {
+            jdbc.update(
+                    "UPDATE outbox_messages SET claimed_at = ? WHERE id = ?",
+                    (PreparedStatement ps) -> {
+                        SqlTimes.write(ps, 1, claimedAt);
+                        ps.setLong(2, id);
+                    }
+            );
+        }
     }
 
     public void markPublished(List<Long> ids, Instant publishedAt) {

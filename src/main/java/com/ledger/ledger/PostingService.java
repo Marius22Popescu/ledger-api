@@ -242,8 +242,9 @@ public class PostingService {
         );
         String body = json.write(Bodies.transaction(stored));
         store.insertOutbox(transactionId, body, recordedAt);
-        log.info("transaction.recorded id={} sequence={} requestId={} paymentId={}",
-                stored.id(), stored.sequence(), stored.requestId(), stored.paymentId());
+        log.info("transaction.recorded id={} sequence={} requestId={} paymentId={} accounts={} result=recorded",
+                stored.id(), stored.sequence(), stored.requestId(), stored.paymentId(),
+                stored.entries().stream().map(entry -> entry.accountId()).distinct().toList());
         return new Outcome.Success(201, body, "/v1/transactions/" + transactionId);
     }
 
