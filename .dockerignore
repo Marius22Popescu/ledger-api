@@ -1,0 +1,7 @@
+.git
+.idea
+.vscode
+target
+*.iml
+HELP.md
+agent-transcripts
