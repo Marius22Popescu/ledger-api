@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ledger — consolă</title>
+    <link rel="stylesheet" href="console.css">
+</head>
+<body>
+    <main class="app">
+        <header>
+            <div class="brand">
+                <h1>Ledger</h1>
+                <p>Consolă rapidă pentru conturi, tranzacții și plăți settled.</p>
+            </div>
+            <div class="status">
+                <span id="status-dot" class="dot"></span>
+                <span id="status-text">verific API-ul</span>
+                <button id="refresh-health" class="ghost" type="button">Reîncearcă</button>
+            </div>
+        </header>
+
+        <section class="card">
+            <h2>Conturi</h2>
+            <div class="presets">
+                <button class="ghost" type="button" data-preset="merchant">Deschide merchant-42</button>
+                <button class="ghost" type="button" data-preset="payouts">Deschide payouts-eur</button>
+                <button class="ghost" type="button" data-preset="fees">Deschide fees-eur</button>
+                <button class="primary" type="button" data-preset="settle">Plată 125.50 EUR</button>
+                <button class="primary" type="button" data-preset="payout">Payout 98.50 + 1.50</button>
+            </div>
+            <form id="watch-form" class="row" style="margin-top: 12px">
+                <label class="grow">Urmărește un cont
+                    <input id="watch-id" name="id" placeholder="settlement-eur" required>
+                </label>
+                <button class="ghost" type="submit">Arată soldul</button>
+            </form>
+            <div id="accounts" class="accounts" style="margin-top: 12px"></div>
+        </section>
+
+        <div class="layout" style="margin-top: 18px">
+            <div class="stack">
+                <form id="open-account" class="card">
+                    <h2>Deschide cont</h2>
+                    <div class="row">
+                        <label class="grow">Id
+                            <input name="id" value="merchant-42" required>
+                        </label>
+                        <label>Monedă
+                            <select name="currency">
+                                <option>EUR</option>
+                                <option>USD</option>
+                                <option>JPY</option>
+                            </select>
+                        </label>
+                        <label>Limită descoperit
+                            <input name="overdraft" value="0.00" required>
+                        </label>
+                    </div>
+                    <div class="actions" style="margin-top: 12px">
+                        <button class="primary" type="submit">Deschide</button>
+                    </div>
+                </form>
+
+                <form id="record-transaction" class="card">
+                    <h2>Tranzacție</h2>
+                    <label>Descriere
+                        <input id="description" value="Payout merchant 42" required>
+                    </label>
+                    <div id="entries" class="entries" style="margin-top: 12px"></div>
+                    <div class="actions" style="margin-top: 12px">
+                        <button id="add-entry" class="ghost" type="button">Adaugă linie</button>
+                        <button class="primary" type="submit">Înregistrează</button>
+                    </div>
+                </form>
+
+                <form id="reverse" class="card">
+                    <h2>Reversare</h2>
+                    <div class="row">
+                        <label class="grow">Id tranzacție
+                            <input id="reverse-id" required>
+                        </label>
+                        <label class="grow">Descriere
+                            <input id="reverse-description" placeholder="opțional">
+                        </label>
+                    </div>
+                    <div class="actions" style="margin-top: 12px">
+                        <button class="warn" type="submit">Inversează</button>
+                    </div>
+                </form>
+
+                <form id="payment" class="card">
+                    <h2>Plată settled</h2>
+                    <div class="row">
+                        <label class="grow">Event id
+                            <input id="payment-event" name="eventId" value="evt-1" required>
+                        </label>
+                        <label class="grow">Payment id
+                            <input id="payment-id" name="paymentId" value="pay-1" required>
+                        </label>
+                        <label class="grow">Cont comerciant
+                            <input id="payment-merchant" name="merchant" value="merchant-42" required>
+                        </label>
+                        <label>Sumă
+                            <input id="payment-amount" name="amount" value="125.50" required>
+                        </label>
+                        <label>Monedă
+                            <select id="payment-currency" name="currency">
+                                <option>EUR</option>
+                                <option>USD</option>
+                                <option>JPY</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="actions" style="margin-top: 12px">
+                        <button class="primary" type="submit">Trimite mesajul</button>
+                    </div>
+                </form>
+            </div>
+
+            <aside class="side">
+                <section class="card result">
+                    <div class="row" style="justify-content: space-between; align-items: center">
+                        <h2 style="margin: 0">Răspuns</h2>
+                        <span id="result-status" class="badge">—</span>
+                    </div>
+                    <label style="margin-top: 12px">Idempotency-Key
+                        <input id="idempotency-key">
+                    </label>
+                    <div class="actions" style="margin: 10px 0 12px">
+                        <button id="new-key" class="ghost" type="button">Cheie nouă</button>
+                        <label class="check"><input id="keep-key" type="checkbox"> Păstrează cheia pentru retry</label>
+                    </div>
+                    <pre id="result-body">Apasă un buton. Răspunsul API apare aici.</pre>
+                </section>
+            </aside>
+        </div>
+    </main>
+    <script src="console.js"></script>
+</body>
+</html>
